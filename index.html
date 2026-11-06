@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIRVIB 兩片式主旋翼動平衡分析系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f8fafc; color: #0f172a; }
+        
+        @page {
+            size: portrait;
+            margin: 8mm 10mm; /* Hides default browser header (date/title) and footer (URL/file path) */
+        }
+
+        @media print {
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                color: black !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .page-break { page-break-before: always; }
+        }
+        .print-only { display: none; }
+        canvas { touch-action: none; }
+        
+        /* Custom UI focus transitions */
+        input:focus, select:focus {
+            outline: none;
+            border-color: #0284c7;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+        }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased text-slate-800">
+
+    <!-- Header Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 no-print shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2.5 bg-slate-900 text-white rounded-xl shadow">
+                    <i class="fa-solid fa-helicopter text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-slate-900 leading-tight tracking-tight">AIRVIB 兩片式主旋翼動平衡分析儀</h1>
+                    <p class="text-xs text-slate-500 font-medium">2-Blade Main Rotor Dynamic Balancing System</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="resetData()" class="px-3.5 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-200">
+                    <i class="fa-solid fa-rotate-left text-slate-500"></i> 重置數據
+                </button>
+                <button onclick="exportReport()" class="px-4 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-lg shadow-sm transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-file-pdf"></i> 報表匯出 / 列印
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Top Section: Integrated Helicopter & Accelerometer Orientation Diagram -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col items-center no-print">
+            <div class="w-full flex flex-wrap items-center justify-between gap-3 mb-3 pb-2 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <div class="p-1.5 bg-sky-100 text-sky-700 rounded-lg">
+                        <i class="fa-solid fa-arrows-spin text-sm"></i>
+                    </div>
+                    <span class="text-sm font-bold text-slate-900">主旋翼與加速計方位示意圖</span>
+                </div>
+                
+                <div class="flex items-center gap-4 text-xs font-semibold">
+                    <!-- Rotor Direction Select -->
+                    <div class="flex items-center gap-1.5">
+                        <label for="rotor_direction" class="text-slate-600">主旋翼旋向:</label>
+                        <select id="rotor_direction" onchange="updateDiagrams()" class="border border-slate-300 rounded-md px-2.5 py-1 bg-slate-50 font-bold text-slate-800 cursor-pointer">
+                            <option value="CCW" selected>逆時針 CCW</option>
+                            <option value="CW">順時針 CW</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Accelerometer Orientation Select -->
+                    <div class="flex items-center gap-1.5">
+                        <label for="acc_orientation" class="text-slate-600">加速計旋轉角度:</label>
+                        <select id="acc_orientation" onchange="updateDiagrams()" class="border border-slate-300 rounded-md px-2.5 py-1 bg-slate-50 font-bold text-slate-800 cursor-pointer">
+                            <option value="0" selected>0°</option>
+                            <option value="90">90°</option>
+                            <option value="180">180°</option>
+                            <option value="270">270°</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Combined Interactive Canvas -->
+            <div class="w-full aspect-[16/9] max-h-[500px] flex items-center justify-center bg-slate-50/80 rounded-xl border border-slate-100 overflow-hidden">
+                <canvas id="combinedCanvas" width="900" height="550" class="w-full h-full object-contain"></canvas>
+            </div>
+        </div>
+
+        <!-- Middle Section: Inputs and Dynamic Solution Plot Cards -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
+            
+            <!-- Left Panel: Measurement & Trial Inputs -->
+            <div class="lg:col-span-5 space-y-4">
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-sky-600"></i> AIRVIB 量測數據與添加試重
+                        </h2>
+                        <span class="text-[11px] text-slate-400 font-mono">1H~12H / IPS</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 gap-4">
+                        <!-- 1st Rotation -->
+                        <div class="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                            <div class="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                                <span class="text-xs font-bold text-slate-800">1st Rotation</span>
+                                <span class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">初始測試 - 配重歸零</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">振幅 Peak (IPS)</label>
+                                    <input type="number" id="run1_ips" step="0.01" value="" placeholder="輸入振幅" oninput="calculateBalancing()" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">相位 Phase (Clock H)</label>
+                                    <div class="relative">
+                                        <input type="text" id="run1_clock" value="" oninput="handleClockInput('run1')" placeholder="例如: 10h, 1h20" class="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-14 py-2 text-slate-900 font-mono text-sm">
+                                        <span id="run1_deg_display" class="absolute right-2.5 top-2.5 text-xs font-mono font-bold text-sky-600">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trial Mass -->
+                        <div class="bg-sky-50/50 p-4 rounded-xl border border-sky-100 space-y-3">
+                            <div class="flex justify-between items-center border-b border-sky-200/60 pb-2">
+                                <span class="text-xs font-bold text-sky-900">Trial Mass (添加試重)</span>
+                                <span class="text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-semibold">反向配重</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-sky-800 mb-1">質量 Mass (g)</label>
+                                    <input type="number" id="trial_mass" step="0.1" value="" placeholder="輸入質量" oninput="calculateBalancing()" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-sky-800 mb-1">位置 (Clock H)</label>
+                                    <div class="relative">
+                                        <input type="text" id="trial_clock" value="" oninput="handleClockInput('trial')" placeholder="例如: 4h" class="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-14 py-2 text-slate-900 font-mono text-sm">
+                                        <span id="trial_deg_display" class="absolute right-2.5 top-2.5 text-xs font-mono font-bold text-sky-600">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2nd Rotation -->
+                        <div class="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                            <div class="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                                <span class="text-xs font-bold text-slate-800">2nd Rotation (帶試重旋轉)</span>
+                                <span class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold">計算靈敏度質量</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">振幅 Peak (IPS)</label>
+                                    <input type="number" id="run2_ips" step="0.01" value="" placeholder="輸入振幅" oninput="calculateBalancing()" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">相位 Phase (Clock H)</label>
+                                    <div class="relative">
+                                        <input type="text" id="run2_clock" value="" oninput="handleClockInput('run2')" placeholder="例如: 2h" class="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-14 py-2 text-slate-900 font-mono text-sm">
+                                        <span id="run2_deg_display" class="absolute right-2.5 top-2.5 text-xs font-mono font-bold text-sky-600">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metadata Input Fields -->
+                    <div class="pt-2 grid grid-cols-3 gap-3 text-xs">
+                        <div>
+                            <span class="text-[11px] text-slate-500 block mb-1">直升機機號 ID</span>
+                            <input type="text" id="meta_aircraft" value="" placeholder="例如: N-8822B" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-500 block mb-1">測試日期 Date</span>
+                            <input type="date" id="meta_date" value="" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-500 block mb-1">工程師 Tech</span>
+                            <input type="text" id="meta_tech" value="" placeholder="工程師簽名" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Solution Result Output Card -->
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Calculated Correction Solution (分析解算結果)</h3>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-100">
+                            <span class="text-xs font-semibold text-emerald-800 block mb-1">建議修正質量 (Correction Mass)</span>
+                            <div class="flex items-baseline gap-1">
+                                <span id="res_corr_mass" class="text-2xl font-black text-emerald-600 font-mono">--</span>
+                                <span class="text-xs font-bold text-emerald-700">g</span>
+                            </div>
+                        </div>
+                        <div class="bg-sky-50/60 p-3.5 rounded-xl border border-sky-100">
+                            <span class="text-xs font-semibold text-sky-800 block mb-1">修正配重安裝方位 (Target Location)</span>
+                            <div class="flex items-baseline gap-1">
+                                <span id="res_final_location" class="text-xl font-black text-sky-600 font-mono">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs font-mono text-slate-600">
+                        <div>Move Line: <b id="res_vector_len" class="text-slate-900">--</b></div>
+                        <div>Ideal Line: <b id="res_ideal_len" class="text-slate-900">--</b></div>
+                        <div>CW Angle: <b id="res_corr_angle" class="text-slate-900">--</b></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: High Res AIRVIB Polar Vector Chart Plot -->
+            <div class="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col items-center">
+                <div class="w-full flex justify-between items-center mb-2 pb-2 border-b border-slate-100">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-sky-600"></i> AIRVIB Universal Polar Chart
+                    </h3>
+                    <div class="flex flex-wrap items-center gap-2.5 text-xs font-bold">
+                        <span class="text-red-600 flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-600"></span> Pt 1</span>
+                        <span class="text-blue-600 flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span> Pt 2</span>
+                        <span class="text-orange-600 flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-orange-600"></span> Pt 3</span>
+                        <span class="text-purple-600 flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Pt 4</span>
+                        <span class="text-emerald-600 flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Pt 5</span>
+                    </div>
+                </div>
+
+                <!-- Increased Internal Resolution Canvas & Enlarged Viewport -->
+                <div class="w-full flex-grow min-h-[500px] flex justify-center items-center overflow-hidden py-2">
+                    <canvas id="polarChart" width="1200" height="1200" class="w-full h-full object-contain max-h-[650px]"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Section: Universal History Record Table Sheet -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm no-print">
+            <h3 class="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-table-cells text-sky-600"></i> AIRVIB Universal Chart Record Table (平衡歷程紀錄表)
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left border-collapse border border-slate-200">
+                    <thead class="bg-slate-50 text-slate-700 font-bold">
+                        <tr>
+                            <th class="p-2.5 border border-slate-200 w-32">READ / CORRECTIONS</th>
+                            <th class="p-2.5 text-center border border-slate-200 bg-red-50/50 text-red-700">1st rotation</th>
+                            <th class="p-2.5 text-center border border-slate-200 bg-blue-50/50 text-blue-700">2nd rotation</th>
+                            <th class="p-2.5 text-center border border-slate-200">3rd rotation</th>
+                            <th class="p-2.5 text-center border border-slate-200">4th rotation</th>
+                            <th class="p-2.5 text-center border border-slate-200">5th rotation</th>
+                        </tr>
+                    </thead>
+                    <tbody class="font-mono text-slate-800">
+                        <tr>
+                            <td class="p-2.5 bg-slate-50 border border-slate-200 font-sans font-semibold text-slate-700">Peak (IPS)</td>
+                            <td id="tbl_r1_peak" class="p-2.5 text-center border border-slate-200 font-bold">--</td>
+                            <td id="tbl_r2_peak" class="p-2.5 text-center border border-slate-200 font-bold">--</td>
+                            <td class="p-1 border border-slate-200"><input type="number" step="0.01" id="r3_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-full text-center outline-none bg-transparent py-1 font-bold text-slate-800"></td>
+                            <td class="p-1 border border-slate-200"><input type="number" step="0.01" id="r4_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-full text-center outline-none bg-transparent py-1 font-bold text-slate-800"></td>
+                            <td class="p-1 border border-slate-200"><input type="number" step="0.01" id="r5_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-full text-center outline-none bg-transparent py-1 font-bold text-slate-800"></td>
+                        </tr>
+                        <tr>
+                            <td class="p-2.5 bg-slate-50 border border-slate-200 font-sans font-semibold text-slate-700">Phase (Clock H)</td>
+                            <td id="tbl_r1_phase" class="p-2.5 text-center border border-slate-200 uppercase font-bold">--</td>
+                            <td id="tbl_r2_phase" class="p-2.5 text-center border border-slate-200 uppercase font-bold">--</td>
+                            <td class="p-1 border border-slate-200"><input type="text" id="r3_phase" oninput="updateRecordTable()" placeholder="Phase" class="w-full text-center outline-none bg-transparent py-1 uppercase font-bold text-slate-800"></td>
+                            <td class="p-1 border border-slate-200"><input type="text" id="r4_phase" oninput="updateRecordTable()" placeholder="Phase" class="w-full text-center outline-none bg-transparent py-1 uppercase font-bold text-slate-800"></td>
+                            <td class="p-1 border border-slate-200"><input type="text" id="r5_phase" oninput="updateRecordTable()" placeholder="Phase" class="w-full text-center outline-none bg-transparent py-1 uppercase font-bold text-slate-800"></td>
+                        </tr>
+                        <tr>
+                            <td class="p-2.5 bg-slate-50 border border-slate-200 font-sans font-semibold text-slate-700">CORRECTIONS</td>
+                            <td id="tbl_r1_corr" class="p-2.5 text-center border border-slate-200 text-slate-400">--</td>
+                            <td id="tbl_r2_corr" class="p-2.5 text-center border border-slate-200 font-bold text-sky-700">--</td>
+                            <td class="p-1 border border-slate-200"><input type="text" id="r3_corr" oninput="updateRecordTable()" placeholder="Mass @ Clock" class="w-full text-center outline-none bg-transparent py-1 font-bold text-sky-700"></td>
+                            <td class="p-1 border border-slate-200"><input type="text" id="r4_corr" oninput="updateRecordTable()" placeholder="Mass @ Clock" class="w-full text-center outline-none bg-transparent py-1 font-bold text-sky-700"></td>
+                            <td class="p-1 border border-slate-200"><input type="text" id="r5_corr" oninput="updateRecordTable()" placeholder="Mass @ Clock" class="w-full text-center outline-none bg-transparent py-1 font-bold text-sky-700"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- PRINT / PDF REPORT SECTION -->
+    <div class="print-only p-4 bg-white text-black font-sans max-w-[850px] mx-auto">
+        <!-- Report Title & Header -->
+        <div class="border-b-2 border-black pb-3 mb-3 flex justify-between items-end">
+            <div>
+                <h1 class="text-2xl font-black tracking-wide">AIRVIB® BALANCING REPORT</h1>
+                <h2 class="text-xs font-bold text-gray-700 mt-0.5">2-Blade Main Rotor Dynamic Balancing / <span id="prt_dir">CCW</span></h2>
+            </div>
+            <div class="text-right text-xs space-y-0.5">
+                <p>Aircraft ID: <span id="prt_aircraft" class="font-bold border-b border-black px-2">--</span></p>
+                <p>Date: <span id="prt_date" class="font-bold border-b border-black px-2">--</span></p>
+                <p>Engineer: <span id="prt_tech" class="font-bold border-b border-black px-2">--</span></p>
+            </div>
+        </div>
+
+        <!-- Top Section: 2-Column Grid -->
+        <div class="grid grid-cols-12 gap-3 mb-3">
+            
+            <!-- Left Column: Top-Left Orientation Diagram + Summary Box -->
+            <div class="col-span-5 flex flex-col gap-3">
+                
+                <!-- 1. Top-Left: Main Rotor & Accelerometer Azimuth Orientation -->
+                <div class="border border-black p-2 flex flex-col items-center justify-center bg-white rounded">
+                    <h3 class="text-[10px] font-bold uppercase tracking-tight mb-1 text-center">MAIN ROTOR & ACCELEROMETER AZIMUTH ORIENTATION</h3>
+                    <img id="prt_combined_img" class="w-full h-44 object-contain" alt="Combined Orientation Diagram">
+                </div>
+
+                <!-- 2. Balancing Summary Box -->
+                <div class="border border-black p-3 flex-grow flex flex-col justify-between bg-white rounded">
+                    <div>
+                        <h3 class="text-xs font-bold border-b border-black pb-1 mb-2">BALANCING SUMMARY</h3>
+                        <div class="text-xs space-y-1.5">
+                            <p><b>1st Rotation:</b> <span id="prt_r1">--</span></p>
+                            <p><b>Trial Mass:</b> <span id="prt_trial">--</span></p>
+                            <p><b>2nd Rotation:</b> <span id="prt_r2">--</span></p>
+                            <div class="pt-2 mt-2 border-t border-gray-300">
+                                <p class="font-bold text-[11px] text-gray-700 uppercase">CORRECTION SOLUTION:</p>
+                                <p class="text-lg font-black mt-0.5 text-emerald-800" id="prt_solution">--</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2 pt-1.5 border-t border-gray-400 bg-gray-50 p-1.5 rounded text-center">
+                        <p class="text-[10px] font-bold text-slate-900 uppercase tracking-tight">Vibration Target Specification: ≤ 0.10 IPS</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Enlarged & Prominent Universal Polar Plot -->
+            <div class="col-span-7 border border-black p-3 flex flex-col items-center justify-between bg-white rounded">
+                <h3 class="text-xs font-bold uppercase tracking-wide mb-1">UNIVERSAL POLAR PLOT</h3>
+                <div class="w-full flex-grow flex items-center justify-center p-1">
+                    <img id="prt_chart_img" class="w-full h-80 object-contain" alt="Polar Chart">
+                </div>
+            </div>
+        </div>
+
+        <!-- Universal Chart Table -->
+        <div class="mb-3">
+            <h3 class="text-xs font-bold mb-1">UNIVERSAL CHART TABLE</h3>
+            <table class="w-full text-xs border-collapse border border-black text-center">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-black p-1.5">READ</th>
+                        <th class="border border-black p-1.5">1st rotation</th>
+                        <th class="border border-black p-1.5">2nd rotation</th>
+                        <th class="border border-black p-1.5">3rd rotation</th>
+                        <th class="border border-black p-1.5">4th rotation</th>
+                        <th class="border border-black p-1.5">5th rotation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="border border-black p-1.5 font-bold bg-gray-50">Peak (IPS)</td>
+                        <td id="prt_tbl_r1_p" class="border border-black p-1.5">--</td>
+                        <td id="prt_tbl_r2_p" class="border border-black p-1.5">--</td>
+                        <td id="prt_tbl_r3_p" class="border border-black p-1.5">--</td>
+                        <td id="prt_tbl_r4_p" class="border border-black p-1.5">--</td>
+                        <td id="prt_tbl_r5_p" class="border border-black p-1.5">--</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-black p-1.5 font-bold bg-gray-50">Phase (Clock)</td>
+                        <td id="prt_tbl_r1_ph" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r2_ph" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r3_ph" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r4_ph" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r5_ph" class="border border-black p-1.5 uppercase">--</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-black p-1.5 font-bold bg-gray-50">CORRECTIONS</td>
+                        <td id="prt_tbl_r1_c" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r2_c" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r3_c" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r4_c" class="border border-black p-1.5 uppercase">--</td>
+                        <td id="prt_tbl_r5_c" class="border border-black p-1.5 uppercase">--</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Signature Footer -->
+        <div class="mt-8 flex justify-between text-xs">
+            <div class="w-52 border-t border-black pt-1 text-center font-semibold">Engineer Signature</div>
+            <div class="w-52 border-t border-black pt-1 text-center font-semibold">Inspector / QA</div>
+        </div>
+    </div>
+
+    <!-- Application Engine Script -->
+    <script>
+        // Data State Object (Initialized Empty)
+        let airvibState = {
+            r1: { ips: null, clockRaw: '', deg: null },
+            trial: { mass: null, clockRaw: '', deg: null },
+            r2: { ips: null, clockRaw: '', deg: null },
+            r3: { peak: '', phase: '', corr: '', ips: null, deg: null },
+            r4: { peak: '', phase: '', corr: '', ips: null, deg: null },
+            r5: { peak: '', phase: '', corr: '', ips: null, deg: null },
+            solution: { mass: null, moveAngleCW: null, targetDeg: null, targetClockRaw: '' },
+            direction: 'CCW',
+            accOrientation: 0
+        };
+
+        let animFrameId = null;
+        let animTime = 0;
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            const dateInput = document.getElementById('meta_date');
+            if (dateInput) dateInput.valueAsDate = new Date();
+            
+            updateDiagrams();
+            calculateBalancing();
+
+            // Start Animation Loop for Pulsing Imbalance Points
+            startPolarChartAnimation();
+
+            // Window Resize redraw handling
+            window.addEventListener('resize', () => {
+                updateDiagrams();
+                drawPolarChart();
+            });
+        });
+
+        function startPolarChartAnimation() {
+            function loop() {
+                animTime += 0.05;
+                drawPolarChart();
+                animFrameId = requestAnimationFrame(loop);
+            }
+            if (!animFrameId) {
+                loop();
+            }
+        }
+
+        // Clock String Parser (e.g. "10h", "1h20", "4:30", "300")
+        function parseClockToDeg(clockStr) {
+            if (!clockStr) return null;
+            const str = clockStr.toString().toLowerCase().trim();
+            if (str === '') return null;
+
+            // Direct numeric degrees (e.g. "300")
+            if (/^\d+(\.\d+)?$/.test(str) && parseFloat(str) > 12) {
+                return (parseFloat(str) % 360 + 360) % 360;
+            }
+
+            // Match patterns like "10", "10h", "10:30", "1h20", "4:30"
+            const regex = /^(\d+)(?:h|:)?(\d+)?$/;
+            const match = str.match(regex);
+            
+            if (match) {
+                let h = parseInt(match[1]) || 0;
+                let m = parseInt(match[2]) || 0;
+                if (h > 12) h = h % 12;
+                return ((h % 12) * 30 + m * 0.5) % 360;
+            }
+            return null;
+        }
+
+        function formatDegToClock(deg) {
+            if (deg === null || isNaN(deg)) return '--';
+            deg = (deg % 360 + 360) % 360;
+            let h = Math.floor(deg / 30);
+            if (h === 0) h = 12;
+            let m = Math.round((deg % 30) * 2);
+            if (m === 60) {
+                h = h === 12 ? 1 : h + 1;
+                m = 0;
+            }
+            return `${h}H${m > 0 ? (m < 10 ? '0' + m : m) : ''}`;
+        }
+
+        function handleClockInput(field) {
+            const el = document.getElementById(`${field}_clock`);
+            const rawVal = el ? el.value : '';
+            const deg = parseClockToDeg(rawVal);
+            
+            let stateKey = field;
+            if (field === 'run1') stateKey = 'r1';
+            if (field === 'run2') stateKey = 'r2';
+
+            if (airvibState[stateKey]) {
+                airvibState[stateKey].clockRaw = rawVal;
+                airvibState[stateKey].deg = deg;
+            }
+
+            const dispEl = document.getElementById(`${field}_deg_display`);
+            if (dispEl) {
+                dispEl.innerText = (deg !== null) ? `${Math.round(deg)}°` : '--';
+            }
+            
+            calculateBalancing();
+        }
+
+        function calculateBalancing() {
+            const r1IpsEl = document.getElementById('run1_ips');
+            const trialMassEl = document.getElementById('trial_mass');
+            const r2IpsEl = document.getElementById('run2_ips');
+
+            airvibState.r1.ips = (r1IpsEl && r1IpsEl.value !== '') ? parseFloat(r1IpsEl.value) : null;
+            airvibState.trial.mass = (trialMassEl && trialMassEl.value !== '') ? parseFloat(trialMassEl.value) : null;
+            airvibState.r2.ips = (r2IpsEl && r2IpsEl.value !== '') ? parseFloat(r2IpsEl.value) : null;
+
+            // Update UI Table inputs for R1 and R2
+            const tblR1P = document.getElementById('tbl_r1_peak');
+            const tblR1Ph = document.getElementById('tbl_r1_phase');
+            const tblR2P = document.getElementById('tbl_r2_peak');
+            const tblR2Ph = document.getElementById('tbl_r2_phase');
+            const tblR2C = document.getElementById('tbl_r2_corr');
+
+            if (tblR1P) tblR1P.innerText = (airvibState.r1.ips !== null && !isNaN(airvibState.r1.ips)) ? airvibState.r1.ips.toFixed(2) : '--';
+            if (tblR1Ph) tblR1Ph.innerText = airvibState.r1.clockRaw ? airvibState.r1.clockRaw.toUpperCase() : '--';
+            if (tblR2P) tblR2P.innerText = (airvibState.r2.ips !== null && !isNaN(airvibState.r2.ips)) ? airvibState.r2.ips.toFixed(2) : '--';
+            if (tblR2Ph) tblR2Ph.innerText = airvibState.r2.clockRaw ? airvibState.r2.clockRaw.toUpperCase() : '--';
+            if (tblR2C) tblR2C.innerText = (airvibState.trial.mass !== null && airvibState.trial.clockRaw) ? `${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw}` : '--';
+
+            // Mathematical Vector Calculation if R1, Trial, and R2 are valid
+            if (airvibState.r1.ips !== null && airvibState.r1.deg !== null &&
+                airvibState.trial.mass !== null && airvibState.trial.deg !== null &&
+                airvibState.r2.ips !== null && airvibState.r2.deg !== null &&
+                !isNaN(airvibState.r1.ips) && !isNaN(airvibState.trial.mass) && !isNaN(airvibState.r2.ips)) {
+
+                const rad1 = (airvibState.r1.deg - 90) * Math.PI / 180;
+                const p1 = { x: airvibState.r1.ips * Math.cos(rad1), y: airvibState.r1.ips * Math.sin(rad1) };
+
+                const rad2 = (airvibState.r2.deg - 90) * Math.PI / 180;
+                const p2 = { x: airvibState.r2.ips * Math.cos(rad2), y: airvibState.r2.ips * Math.sin(rad2) };
+
+                const vMove = { x: p2.x - p1.x, y: p2.y - p1.y };
+                const moveLen = Math.sqrt(vMove.x * vMove.x + vMove.y * vMove.y);
+                const idealLen = airvibState.r1.ips;
+
+                let corrMass = 0;
+                if (moveLen > 0) {
+                    corrMass = airvibState.trial.mass * (idealLen / moveLen);
+                }
+
+                const moveAngleRad = Math.atan2(vMove.y, vMove.x);
+                const idealAngleRad = Math.atan2(-p1.y, -p1.x);
+
+                let moveDeg = (moveAngleRad * 180 / Math.PI + 360) % 360;
+                let idealDeg = (idealAngleRad * 180 / Math.PI + 360) % 360;
+                let clockWiseDiff = (idealDeg - moveDeg + 360) % 360;
+
+                let finalTargetDeg = (airvibState.trial.deg + clockWiseDiff) % 360;
+                let finalClockRaw = formatDegToClock(finalTargetDeg);
+
+                airvibState.solution = {
+                    mass: corrMass,
+                    moveAngleCW: clockWiseDiff,
+                    targetDeg: finalTargetDeg,
+                    targetClockRaw: finalClockRaw,
+                    moveLen: moveLen,
+                    idealLen: idealLen
+                };
+
+                const resMassEl = document.getElementById('res_corr_mass');
+                const resLocEl = document.getElementById('res_final_location');
+                const resVecEl = document.getElementById('res_vector_len');
+                const resIdealEl = document.getElementById('res_ideal_len');
+                const resAngleEl = document.getElementById('res_corr_angle');
+
+                if (resMassEl) resMassEl.innerText = corrMass.toFixed(1);
+                if (resLocEl) resLocEl.innerText = `${finalClockRaw} (${Math.round(finalTargetDeg)}°)`;
+                if (resVecEl) resVecEl.innerText = moveLen.toFixed(3);
+                if (resIdealEl) resIdealEl.innerText = idealLen.toFixed(3);
+                if (resAngleEl) resAngleEl.innerText = `${Math.round(clockWiseDiff)}°`;
+            } else {
+                airvibState.solution = { mass: null, moveAngleCW: null, targetDeg: null, targetClockRaw: '' };
+                const resMassEl = document.getElementById('res_corr_mass');
+                const resLocEl = document.getElementById('res_final_location');
+                const resVecEl = document.getElementById('res_vector_len');
+                const resIdealEl = document.getElementById('res_ideal_len');
+                const resAngleEl = document.getElementById('res_corr_angle');
+
+                if (resMassEl) resMassEl.innerText = '--';
+                if (resLocEl) resLocEl.innerText = '--';
+                if (resVecEl) resVecEl.innerText = '--';
+                if (resIdealEl) resIdealEl.innerText = '--';
+                if (resAngleEl) resAngleEl.innerText = '--';
+            }
+
+            drawPolarChart();
+        }
+
+        // Track 3rd, 4th, 5th rotation inputs and parse polar coordinates
+        function updateRecordTable() {
+            ['r3', 'r4', 'r5'].forEach(r => {
+                const peakVal = document.getElementById(`${r}_peak`)?.value;
+                const phaseVal = document.getElementById(`${r}_phase`)?.value;
+                const corrVal = document.getElementById(`${r}_corr`)?.value;
+
+                const ips = (peakVal !== '' && peakVal !== undefined && peakVal !== null) ? parseFloat(peakVal) : null;
+                const deg = parseClockToDeg(phaseVal);
+
+                airvibState[r] = {
+                    peak: peakVal || '',
+                    phase: phaseVal || '',
+                    corr: corrVal || '',
+                    ips: (ips !== null && !isNaN(ips)) ? ips : null,
+                    deg: deg
+                };
+            });
+            drawPolarChart();
+        }
+
+        // ---------------------------------------------------------
+        // Universal Polar Vector Chart Renderer (High-DPI Scaling)
+        // ---------------------------------------------------------
+        function drawPolarChart() {
+            const canvas = document.getElementById('polarChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const cx = w / 2, cy = h / 2;
+            const rMax = w * 0.38;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Determine Dynamic Auto-Scaling Ceiling based on Maximum Recorded IPS
+            let currentMaxVal = 0;
+            let validPointsCount = 0;
+
+            if (airvibState.r1.ips !== null && !isNaN(airvibState.r1.ips) && airvibState.r1.ips > 0) {
+                currentMaxVal = Math.max(currentMaxVal, airvibState.r1.ips);
+                validPointsCount++;
+            }
+            if (airvibState.r2.ips !== null && !isNaN(airvibState.r2.ips) && airvibState.r2.ips > 0) {
+                currentMaxVal = Math.max(currentMaxVal, airvibState.r2.ips);
+                validPointsCount++;
+            }
+            ['r3', 'r4', 'r5'].forEach(r => {
+                if (airvibState[r] && airvibState[r].ips !== null && !isNaN(airvibState[r].ips) && airvibState[r].ips > 0) {
+                    currentMaxVal = Math.max(currentMaxVal, airvibState[r].ips);
+                    validPointsCount++;
+                }
+            });
+
+            let maxIPS = 1.0;
+            if (validPointsCount > 0 && currentMaxVal > 0) {
+                // Add a 12% safety margin so points do not lie exactly on the outer border line
+                let rawLimit = currentMaxVal * 1.12;
+
+                // Smart Range Rounding Ceiling for optimal readability
+                if (rawLimit <= 0.1) maxIPS = 0.1;
+                else if (rawLimit <= 0.2) maxIPS = 0.2;
+                else if (rawLimit <= 0.3) maxIPS = 0.3;
+                else if (rawLimit <= 0.4) maxIPS = 0.4;
+                else if (rawLimit <= 0.5) maxIPS = 0.5;
+                else if (rawLimit <= 0.6) maxIPS = 0.6;
+                else if (rawLimit <= 0.8) maxIPS = 0.8;
+                else if (rawLimit <= 1.0) maxIPS = 1.0;
+                else maxIPS = Math.ceil(rawLimit * 10) / 10;
+            } else {
+                maxIPS = 1.0; // Default view when empty
+            }
+
+            // 1. Concentric IPS Circles (10 rings)
+            const ringCount = 10;
+            for (let i = 1; i <= ringCount; i++) {
+                const r = (rMax / ringCount) * i;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+                ctx.strokeStyle = (i === ringCount) ? '#475569' : '#e2e8f0';
+                ctx.lineWidth = (i === ringCount) ? 2.5 : 1.5;
+                ctx.stroke();
+            }
+
+            // 2. Clean IPS Scale Annotations with Smart Precision
+            const step = maxIPS / ringCount;
+            const rad60 = (60 - 90) * Math.PI / 180;   // 60° / 2H ray
+            const rad240 = (240 - 90) * Math.PI / 180; // 240° / 8H ray
+
+            for (let i = 1; i <= ringCount; i++) {
+                const r = (rMax / ringCount) * i;
+                const val = (step * i);
+
+                let ipsText;
+                if (maxIPS <= 0.5) {
+                    ipsText = val.toFixed(2);
+                    if (ipsText.endsWith('0')) ipsText = val.toFixed(1);
+                } else {
+                    ipsText = (val % 1 === 0) ? val.toFixed(0) : val.toFixed(1);
+                }
+
+                // Set 1: Along 60° (2H) axis
+                const x60 = cx + r * Math.cos(rad60);
+                const y60 = cy + r * Math.sin(rad60);
+                ctx.save();
+                ctx.font = 'bold 15px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+                ctx.strokeText(ipsText, x60, y60);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillText(ipsText, x60, y60);
+                ctx.restore();
+
+                // Set 2: Along 240° (8H) axis
+                const x240 = cx + r * Math.cos(rad240);
+                const y240 = cy + r * Math.sin(rad240);
+                ctx.save();
+                ctx.font = 'bold 15px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+                ctx.strokeText(ipsText, x240, y240);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillText(ipsText, x240, y240);
+                ctx.restore();
+            }
+
+            // 3. Radial Angle Lines (Every 10 degrees)
+            for (let deg = 0; deg < 360; deg += 10) {
+                const rad = (deg - 90) * Math.PI / 180;
+                const isMainHour = (deg % 30 === 0);
+
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + rMax * Math.cos(rad), cy + rMax * Math.sin(rad));
+                ctx.strokeStyle = isMainHour ? '#cbd5e1' : '#f1f5f9';
+                ctx.lineWidth = isMainHour ? 2.5 : 1.2;
+                ctx.stroke();
+
+                // Outer Labels (30° Hour Intervals) - Scaled Bold Typography
+                if (isMainHour) {
+                    const clock = (deg / 30 === 0) ? 12 : Math.round(deg / 30);
+                    const lx = cx + (rMax + 40) * Math.cos(rad);
+                    const ly = cy + (rMax + 40) * Math.sin(rad);
+
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = 'bold 26px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${clock}H`, lx, ly - 12);
+
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = 'bold 20px sans-serif';
+                    ctx.fillText(`${deg}°`, lx, ly + 14);
+                }
+            }
+
+            // Coordinates Helper
+            function getCoords(ips, deg) {
+                if (ips === null || deg === null || isNaN(ips) || isNaN(deg)) return null;
+                const r = (ips / maxIPS) * rMax;
+                const rad = (deg - 90) * Math.PI / 180;
+                return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+            }
+
+            const p1 = getCoords(airvibState.r1.ips, airvibState.r1.deg);
+            const p2 = getCoords(airvibState.r2.ips, airvibState.r2.deg);
+            const p3 = getCoords(airvibState.r3?.ips, airvibState.r3?.deg);
+            const p4 = getCoords(airvibState.r4?.ips, airvibState.r4?.deg);
+            const p5 = getCoords(airvibState.r5?.ips, airvibState.r5?.deg);
+
+            // Render Vectors if Initial Points Exist
+            if (p1) {
+                // Ideal Line (Pt 1 -> Center)
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(cx, cy);
+                ctx.strokeStyle = '#10b981'; // Emerald Green
+                ctx.lineWidth = 3.5;
+                ctx.stroke();
+                drawArrowhead(ctx, p1, { x: cx, y: cy }, '#10b981', 12);
+
+                const midIx = (p1.x + cx) / 2;
+                const midIy = (p1.y + cy) / 2;
+                drawPolarTextBadge(ctx, 'Ideal Line', midIx + 15, midIy, '#059669', 'rgba(236, 253, 245, 0.95)', '#a7f3d0');
+
+                if (p2) {
+                    // Move Vector Line (Pt 1 -> Pt 2)
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = '#0284c7'; // Blue
+                    ctx.lineWidth = 3.5;
+                    ctx.stroke();
+                    drawArrowhead(ctx, p1, p2, '#0284c7', 12);
+
+                    const midMx = (p1.x + p2.x) / 2;
+                    const midMy = (p1.y + p2.y) / 2;
+                    drawPolarTextBadge(ctx, 'Move Vector', midMx, midMy - 18, '#0284c7', 'rgba(240, 249, 255, 0.95)', '#bae6fd');
+
+                    // Correction Angle Arc (Purple Dashed)
+                    if (airvibState.solution.moveAngleCW !== null) {
+                        const vMoveRad = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                        const vIdealRad = Math.atan2(cy - p1.y, cx - p1.y);
+
+                        ctx.beginPath();
+                        ctx.arc(p1.x, p1.y, 40, vMoveRad, vIdealRad, false);
+                        ctx.strokeStyle = '#a855f7';
+                        ctx.lineWidth = 2.5;
+                        ctx.setLineDash([4, 4]);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+
+                        drawPolarTextBadge(ctx, 'Correction Angle', p1.x + 55, p1.y + 22, '#9333ea', 'rgba(250, 245, 255, 0.95)', '#e9d5ff');
+                    }
+                }
+            }
+
+            // High-Contrast Vivid Colors & Layering Configuration for Pt 1 ~ Pt 5
+            const pointsData = [
+                { pt: p1, label: 'Pt 1', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.3)', textBg: '#fef2f2', border: '#fca5a5', offset: { x: 16, y: 16 } },
+                { pt: p2, label: 'Pt 2', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.3)', textBg: '#eff6ff', border: '#bfdbfe', offset: { x: -16, y: -16 } },
+                { pt: p3, label: 'Pt 3', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.3)', textBg: '#fff7ed', border: '#ffedd5', offset: { x: 18, y: -16 } },
+                { pt: p4, label: 'Pt 4', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.3)', textBg: '#f5f3ff', border: '#ddd6fe', offset: { x: -18, y: 16 } },
+                { pt: p5, label: 'Pt 5', color: '#059669', bg: 'rgba(5, 150, 105, 0.3)', textBg: '#ecfdf5', border: '#a7f3d0', offset: { x: 0, y: -20 } }
+            ];
+
+            // Step 1: Render Text Label Badges FIRST (Lower Layer)
+            pointsData.forEach(item => {
+                if (!item.pt) return;
+                const dx = item.pt.x - cx;
+                const dy = item.pt.y - cy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                let tx = item.pt.x + item.offset.x;
+                let ty = item.pt.y + item.offset.y;
+
+                if (dist > 10) {
+                    tx = item.pt.x + (dx / dist) * 24 + item.offset.x * 0.4;
+                    ty = item.pt.y + (dy / dist) * 24 + item.offset.y * 0.4;
+                }
+
+                drawPolarTextBadge(ctx, item.label, tx, ty, item.color, item.textBg, item.border);
+            });
+
+            // Step 2: Render Pulsing Dots LAST (Topmost Layer - Guarantees 0% Occlusion)
+            const pulseR = 6 + Math.sin(animTime * 3.5) * 2.5;
+            pointsData.forEach(item => {
+                if (!item.pt) return;
+
+                // Glowing Outer Ring
+                ctx.beginPath();
+                ctx.arc(item.pt.x, item.pt.y, pulseR + 4, 0, 2 * Math.PI);
+                ctx.fillStyle = item.bg;
+                ctx.fill();
+
+                // Center Solid Pulsing Dot
+                ctx.beginPath();
+                ctx.arc(item.pt.x, item.pt.y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = item.color;
+                ctx.fill();
+
+                // High Contrast White & Dark Border Ring
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                ctx.strokeStyle = item.color;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+        }
+
+        function drawPolarTextBadge(ctx, text, x, y, textColor, bgColor, borderColor) {
+            ctx.save();
+            ctx.font = 'bold 14px sans-serif';
+            const metrics = ctx.measureText(text);
+            const paddingX = 6;
+            const h = 18;
+            const w = metrics.width + paddingX * 2;
+
+            ctx.fillStyle = bgColor;
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 1;
+
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(x - w / 2, y - h / 2, w, h, 4);
+            } else {
+                ctx.rect(x - w / 2, y - h / 2, w, h);
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = textColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, x, y);
+            ctx.restore();
+        }
+
+        function drawArrowhead(ctx, from, to, color, headlen = 12) {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const angle = Math.atan2(dy, dx);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(to.x, to.y);
+            ctx.lineTo(to.x - headlen * Math.cos(angle - Math.PI / 6), to.y - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(to.x - headlen * Math.cos(angle + Math.PI / 6), to.y - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // ---------------------------------------------------------
+        // Drawing Integrated Diagram (Helicopter + Accelerometer Orientation Dial)
+        // ---------------------------------------------------------
+        function updateDiagrams() {
+            const dirElem = document.getElementById('rotor_direction');
+            if (dirElem) airvibState.direction = dirElem.value;
+            
+            const accSelect = document.getElementById('acc_orientation');
+            if (accSelect) airvibState.accOrientation = parseInt(accSelect.value) || 0;
+            
+            drawCombinedDiagram();
+        }
+
+        function drawCombinedDiagram() {
+            const canvas = document.getElementById('combinedCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const cx = w / 2, cy = h / 2;
+            const rDial = 190;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Calculate rotation angle for 12H (0°)
+            const rotOffset = (airvibState.accOrientation || 0);
+            let visualDegZero = (airvibState.direction === 'CW') ? rotOffset : -rotOffset;
+            let radZero = (visualDegZero - 90) * Math.PI / 180;
+
+            // 1. Inner Rotor Disc Boundary
+            const rDisc = 130;
+            ctx.beginPath();
+            ctx.arc(cx, cy, rDisc, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Landing Skids (Side rails & cross struts based on reference silhouette)
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(cx - 30, cy - 24); ctx.lineTo(cx - 30, cy + 32);
+            ctx.moveTo(cx + 30, cy - 24); ctx.lineTo(cx + 30, cy + 32);
+            ctx.stroke();
+
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.moveTo(cx - 30, cy - 10); ctx.lineTo(cx - 18, cy - 10);
+            ctx.moveTo(cx - 30, cy + 18); ctx.lineTo(cx - 16, cy + 18);
+            ctx.moveTo(cx + 30, cy - 10); ctx.lineTo(cx + 18, cy - 10);
+            ctx.moveTo(cx + 30, cy + 18); ctx.lineTo(cx + 16, cy + 18);
+            ctx.stroke();
+
+            // Streamlined Fuselage Silhouette Body (Inspired by reference vector)
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.5;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - 58); // Rounded Nose
+            ctx.bezierCurveTo(cx + 20, cy - 56, cx + 25, cy - 36, cx + 25, cy - 10);
+            ctx.bezierCurveTo(cx + 25, cy + 15, cx + 18, cy + 38, cx + 5, cy + 62);
+            ctx.lineTo(cx + 3.5, cy + 118); // Right tail boom
+            ctx.lineTo(cx - 3.5, cy + 118); // Left tail boom
+            ctx.lineTo(cx - 5, cy + 62);
+            ctx.bezierCurveTo(cx - 18, cy + 38, cx - 25, cy + 15, cx - 25, cy - 10);
+            ctx.bezierCurveTo(cx - 25, cy - 36, cx - 20, cy - 56, cx, cy - 58);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cockpit Windshield White Window Cutouts
+            ctx.fillStyle = '#ffffff';
+
+            // Front Windshield Left & Right
+            ctx.beginPath();
+            ctx.moveTo(cx - 2, cy - 53);
+            ctx.bezierCurveTo(cx - 12, cy - 51, cx - 17, cy - 40, cx - 15, cy - 31);
+            ctx.lineTo(cx - 2, cy - 31);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(cx + 2, cy - 53);
+            ctx.bezierCurveTo(cx + 12, cy - 51, cx + 17, cy - 40, cx + 15, cy - 31);
+            ctx.lineTo(cx + 2, cy - 31);
+            ctx.closePath();
+            ctx.fill();
+
+            // Side Windows
+            ctx.beginPath();
+            ctx.moveTo(cx - 17, cy - 29);
+            ctx.lineTo(cx - 21, cy - 29);
+            ctx.bezierCurveTo(cx - 22, cy - 18, cx - 21, cy - 10, cx - 18, cy - 4);
+            ctx.lineTo(cx - 16, cy - 4);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(cx + 17, cy - 29);
+            ctx.lineTo(cx + 21, cy - 29);
+            ctx.bezierCurveTo(cx + 22, cy - 18, cx + 21, cy - 10, cx + 18, cy - 4);
+            ctx.lineTo(cx + 16, cy - 4);
+            ctx.closePath();
+            ctx.fill();
+
+            // Upper Roof Windows
+            ctx.beginPath();
+            ctx.rect(cx - 12, cy - 27, 9, 20);
+            ctx.rect(cx + 3, cy - 27, 9, 20);
+            ctx.fill();
+
+            // Deck Hatch & Tail Seam Accent Lines
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy + 8, 7, 12, 0, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy + 45);
+            ctx.lineTo(cx, cy + 112);
+            ctx.stroke();
+
+            // Horizontal Stabilizer with Vertical End-Plates
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.rect(cx - 27, cy + 92, 54, 6);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.rect(cx - 29, cy + 85, 4, 20);
+            ctx.rect(cx + 25, cy + 85, 4, 20);
+            ctx.fill();
+
+            // Tail Rotor (at bottom)
+            ctx.beginPath();
+            ctx.rect(cx - 11, cy + 116, 22, 3);
+            ctx.rect(cx - 1.5, cy + 110, 3, 15);
+            ctx.fill();
+
+            // Synchronized 2-Blade Main Rotor
+            const rBladeA = 110;
+            const rBladeB = 106;
+
+            function drawRotorBlade(angleRad, length, mainColor) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(angleRad);
+
+                // Root Pitch Grip / Sleeve
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(0, -3);
+                ctx.lineTo(16, -4);
+                ctx.lineTo(24, -6);
+                ctx.lineTo(length, -5);
+                ctx.lineTo(length, 5);
+                ctx.lineTo(24, 6);
+                ctx.lineTo(16, 4);
+                ctx.lineTo(0, 3);
+                ctx.closePath();
+                ctx.fillStyle = mainColor;
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            // Blade A (0°) - Pink accent
+            drawRotorBlade(radZero, rBladeA, '#ec4899');
+
+            // Blade B (180°) - Blue accent
+            drawRotorBlade(radZero + Math.PI, rBladeB, '#0284c7');
+
+            // Center Rotor Hub Cap (Double Circle like reference image)
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8.5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#0f172a';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, 3.5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            // Direction Arrow Arc
+            ctx.strokeStyle = '#0284c7';
+            ctx.lineWidth = 2.5;
+            const rArrow = 82;
+            
+            let tipX, tipY, tangentAngle;
+
+            if (airvibState.direction === 'CCW') {
+                const startAngle = radZero - 0.15;
+                const endAngle = radZero - Math.PI / 2;
+                ctx.beginPath();
+                ctx.arc(cx, cy, rArrow, startAngle, endAngle, true);
+                ctx.stroke();
+
+                tipX = cx + rArrow * Math.cos(endAngle);
+                tipY = cy + rArrow * Math.sin(endAngle);
+                tangentAngle = endAngle - Math.PI / 2;
+            } else {
+                const startAngle = radZero + 0.15;
+                const endAngle = radZero + Math.PI / 2;
+                ctx.beginPath();
+                ctx.arc(cx, cy, rArrow, startAngle, endAngle, false);
+                ctx.stroke();
+
+                tipX = cx + rArrow * Math.cos(endAngle);
+                tipY = cy + rArrow * Math.sin(endAngle);
+                tangentAngle = endAngle + Math.PI / 2;
+            }
+
+            // Solid Triangular Arrowhead Tip
+            ctx.save();
+            ctx.translate(tipX, tipY);
+            ctx.rotate(tangentAngle);
+            ctx.fillStyle = '#0284c7';
+            ctx.beginPath();
+            ctx.moveTo(8, 0);       // Front tip
+            ctx.lineTo(-6, -5.5);   // Back left
+            ctx.lineTo(-3, 0);      // Inner notch
+            ctx.lineTo(-6, 5.5);    // Back right
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Helper function to draw rounded badge with crisp text
+            function drawTextBadge(text, x, y, textColor, bgColor, borderColor) {
+                ctx.save();
+                ctx.font = 'bold 12px sans-serif';
+                const metrics = ctx.measureText(text);
+                const paddingX = 7;
+                const h = 20;
+                const w = metrics.width + paddingX * 2;
+
+                ctx.fillStyle = bgColor;
+                ctx.strokeStyle = borderColor;
+                ctx.lineWidth = 1;
+
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(x - w / 2, y - h / 2, w, h, 4);
+                } else {
+                    ctx.rect(x - w / 2, y - h / 2, w, h);
+                }
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = textColor;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, x, y);
+                ctx.restore();
+            }
+
+            // Calculate badge positions offset cleanly to the side of the blade vector
+            const perpX = -Math.sin(radZero);
+            const perpY = Math.cos(radZero);
+
+            // Blade A Badge Position
+            const distA = rBladeA * 0.62;
+            const badgeAx = cx + Math.cos(radZero) * distA + perpX * 38;
+            const badgeAy = cy + Math.sin(radZero) * distA + perpY * 38;
+            drawTextBadge('Blade A (0°)', badgeAx, badgeAy, '#db2777', '#fdf2f8', '#fbcfe8');
+
+            // Blade B Badge Position
+            const distB = rBladeB * 0.62;
+            const badgeBx = cx - Math.cos(radZero) * distB - perpX * 38;
+            const badgeBy = cy - Math.sin(radZero) * distB - perpY * 38;
+            drawTextBadge('Blade B (180°)', badgeBx, badgeBy, '#0284c7', '#f0f9ff', '#bae6fd');
+
+            // 2. Outer Accelerometer Dial & Sensor Mount
+            let sensorMountX = cx + rDial * Math.cos(radZero);
+            let sensorMountY = cy + rDial * Math.sin(radZero);
+
+            ctx.save();
+            ctx.translate(sensorMountX, sensorMountY);
+            ctx.rotate(radZero + Math.PI / 2);
+
+            // Accelerometer Vector Icon (Corrected Structural Orientation)
+            // 1. Top BNC Connector
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.rect(-4, -26, 8, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            // 2. Main Sensor Body
+            ctx.fillStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.rect(-13, -20, 26, 16);
+            ctx.fill();
+            ctx.stroke();
+
+            // Red Up Arrow inside sensor body pointing vertically UP
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(0, -17);
+            ctx.lineTo(-3.5, -11);
+            ctx.lineTo(-1.5, -11);
+            ctx.lineTo(-1.5, -6);
+            ctx.lineTo(1.5, -6);
+            ctx.lineTo(1.5, -11);
+            ctx.lineTo(3.5, -11);
+            ctx.closePath();
+            ctx.fill();
+
+            // 3. Hex Nut Base / Shoulder
+            ctx.fillStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.rect(-10, -4, 20, 7);
+            ctx.fill();
+            ctx.stroke();
+
+            // 4. Threaded Mounting Stud (螺牙圖樣填滿)
+            ctx.fillStyle = '#f1f5f9';
+            ctx.beginPath();
+            ctx.rect(-5, 3, 10, 9);
+            ctx.fill();
+            ctx.stroke();
+
+            // Horizontal thread lines
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1;
+            for (let ty = 5; ty <= 10; ty += 2) {
+                ctx.beginPath();
+                ctx.moveTo(-4.5, ty);
+                ctx.lineTo(4.5, ty);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+
+            // Dial Ticks & Hour/Degree Texts
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (let i = 0; i < 12; i++) {
+                let clock = (i === 0) ? 12 : i;
+                let deg = i * 30;
+
+                let visualDeg = (airvibState.direction === 'CW') ? deg + rotOffset : -deg - rotOffset;
+                let rad = (visualDeg - 90) * Math.PI / 180;
+
+                let xOut = cx + rDial * Math.cos(rad);
+                let yOut = cy + rDial * Math.sin(rad);
+                let xIn = cx + (rDial - 10) * Math.cos(rad);
+                let yIn = cy + (rDial - 10) * Math.sin(rad);
+
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = (clock % 3 === 0) ? 2.5 : 1.5;
+                ctx.beginPath();
+                ctx.moveTo(xIn, yIn); ctx.lineTo(xOut, yOut);
+                ctx.stroke();
+
+                // Sub-ticks
+                for (let m = 1; m <= 3; m++) {
+                    let subDeg = deg + m * 7.5;
+                    let subVisual = (airvibState.direction === 'CW') ? subDeg + rotOffset : -subDeg - rotOffset;
+                    let subRad = (subVisual - 90) * Math.PI / 180;
+                    let sx1 = cx + rDial * Math.cos(subRad);
+                    let sy1 = cy + rDial * Math.sin(subRad);
+                    let sx2 = cx + (rDial - 5) * Math.cos(subRad);
+                    let sy2 = cy + (rDial - 5) * Math.sin(subRad);
+
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2);
+                    ctx.stroke();
+                }
+
+                // Push out hour text dynamically at the position where accelerometer is mounted
+                let isAccPos = (deg === 0);
+                let textDist = isAccPos ? rDial + 52 : rDial + 26;
+                let lx = cx + textDist * Math.cos(rad);
+                let ly = cy + textDist * Math.sin(rad);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.font = 'bold 13px sans-serif';
+                ctx.fillText(`${clock}H`, lx, ly - 6);
+
+                ctx.fillStyle = '#64748b';
+                ctx.font = '11px sans-serif';
+                ctx.fillText(`${deg}°`, lx, ly + 8);
+            }
+        }
+
+        // ---------------------------------------------------------
+        // Utilities & Export Report Functions
+        // ---------------------------------------------------------
+        function resetData() {
+            document.getElementById('run1_ips').value = '';
+            document.getElementById('run1_clock').value = '';
+            document.getElementById('trial_mass').value = '';
+            document.getElementById('trial_clock').value = '';
+            document.getElementById('run2_ips').value = '';
+            document.getElementById('run2_clock').value = '';
+
+            ['r3', 'r4', 'r5'].forEach(r => {
+                const p = document.getElementById(`${r}_peak`);
+                const ph = document.getElementById(`${r}_phase`);
+                const c = document.getElementById(`${r}_corr`);
+                if (p) p.value = '';
+                if (ph) ph.value = '';
+                if (c) c.value = '';
+            });
+
+            updateRecordTable();
+            handleClockInput('run1');
+            handleClockInput('trial');
+            handleClockInput('run2');
+        }
+
+        function exportReport() {
+            updateRecordTable();
+
+            const dirElem = document.getElementById('rotor_direction');
+            const airElem = document.getElementById('meta_aircraft');
+            const dateElem = document.getElementById('meta_date');
+            const techElem = document.getElementById('meta_tech');
+
+            document.getElementById('prt_dir').innerText = dirElem ? dirElem.value : 'CCW';
+            document.getElementById('prt_aircraft').innerText = (airElem && airElem.value) ? airElem.value : '--';
+            document.getElementById('prt_date').innerText = (dateElem && dateElem.value) ? dateElem.value : new Date().toLocaleDateString('zh-TW');
+            document.getElementById('prt_tech').innerText = (techElem && techElem.value) ? techElem.value : '--';
+
+            document.getElementById('prt_r1').innerText = (airvibState.r1.ips !== null) ? `${airvibState.r1.ips.toFixed(2)} IPS @ ${(airvibState.r1.clockRaw || '--').toUpperCase()}` : '--';
+            document.getElementById('prt_trial').innerText = (airvibState.trial.mass !== null) ? `${airvibState.trial.mass}g @ ${(airvibState.trial.clockRaw || '--').toUpperCase()}` : '--';
+            document.getElementById('prt_r2').innerText = (airvibState.r2.ips !== null) ? `${airvibState.r2.ips.toFixed(2)} IPS @ ${(airvibState.r2.clockRaw || '--').toUpperCase()}` : '--';
+
+            document.getElementById('prt_solution').innerText = (airvibState.solution.mass !== null) ? 
+                `${airvibState.solution.mass.toFixed(1)}g @ ${airvibState.solution.targetClockRaw}` : '--';
+
+            // Table Summary Data (Rotations 1 to 5)
+            document.getElementById('prt_tbl_r1_p').innerText = (airvibState.r1.ips !== null) ? airvibState.r1.ips.toFixed(2) : '--';
+            document.getElementById('prt_tbl_r1_ph').innerText = airvibState.r1.clockRaw || '--';
+            document.getElementById('prt_tbl_r1_c').innerText = '--';
+
+            document.getElementById('prt_tbl_r2_p').innerText = (airvibState.r2.ips !== null) ? airvibState.r2.ips.toFixed(2) : '--';
+            document.getElementById('prt_tbl_r2_ph').innerText = airvibState.r2.clockRaw || '--';
+            document.getElementById('prt_tbl_r2_c').innerText = (airvibState.trial.mass !== null) ? `${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw}` : '--';
+
+            // Rotations 3, 4, 5
+            ['r3', 'r4', 'r5'].forEach(r => {
+                const data = airvibState[r] || {};
+                document.getElementById(`prt_tbl_${r}_p`).innerText = data.peak !== '' ? data.peak : '--';
+                document.getElementById(`prt_tbl_${r}_ph`).innerText = data.phase !== '' ? data.phase : '--';
+                document.getElementById(`prt_tbl_${r}_c`).innerText = data.corr !== '' ? data.corr : '--';
+            });
+
+            // Dual Chart Canvas Transfers
+            const polarCanvas = document.getElementById('polarChart');
+            if (polarCanvas) {
+                document.getElementById('prt_chart_img').src = polarCanvas.toDataURL('image/png');
+            }
+            const combinedCanvas = document.getElementById('combinedCanvas');
+            if (combinedCanvas) {
+                document.getElementById('prt_combined_img').src = combinedCanvas.toDataURL('image/png');
+            }
+
+            setTimeout(() => { window.print(); }, 200);
+        }
+    </script>
+</body>
+</html>
