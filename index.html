@@ -53,9 +53,19 @@
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             .page-break { page-break-before: always; }
+            .badge-blink { animation: none !important; opacity: 1 !important; }
         }
         .print-only { display: none; }
         canvas { touch-action: none; }
+        
+        /* Blinking animation for PASS / FAIL badges */
+        @keyframes statusBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.25; }
+        }
+        .badge-blink {
+            animation: statusBlink 1.2s infinite ease-in-out;
+        }
         
         /* Custom UI focus transitions */
         input:focus, select:focus {
@@ -144,6 +154,22 @@
                         </h2>
                         <span class="text-[11px] text-slate-400 font-mono">1H~12H / IPS</span>
                     </div>
+
+                    <!-- Metadata Input Fields (Moved to Top Row) -->
+                    <div class="grid grid-cols-3 gap-3 text-xs pb-1">
+                        <div>
+                            <span class="text-[11px] font-semibold text-slate-600 block mb-1">直升機機號 ID</span>
+                            <input type="text" id="meta_aircraft" value="" placeholder="例如: N-8822B" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
+                        </div>
+                        <div>
+                            <span class="text-[11px] font-semibold text-slate-600 block mb-1">測試日期 Date</span>
+                            <input type="date" id="meta_date" value="" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
+                        </div>
+                        <div>
+                            <span class="text-[11px] font-semibold text-slate-600 block mb-1">工程師 Tech</span>
+                            <input type="text" id="meta_tech" value="" placeholder="工程師簽名" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
+                        </div>
+                    </div>
                     
                     <div class="grid grid-cols-1 gap-4">
                         <!-- 1st Rotation -->
@@ -209,40 +235,31 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Metadata Input Fields -->
-                    <div class="pt-2 grid grid-cols-3 gap-3 text-xs">
-                        <div>
-                            <span class="text-[11px] text-slate-500 block mb-1">直升機機號 ID</span>
-                            <input type="text" id="meta_aircraft" value="" placeholder="例如: N-8822B" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
-                        </div>
-                        <div>
-                            <span class="text-[11px] text-slate-500 block mb-1">測試日期 Date</span>
-                            <input type="date" id="meta_date" value="" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
-                        </div>
-                        <div>
-                            <span class="text-[11px] text-slate-500 block mb-1">工程師 Tech</span>
-                            <input type="text" id="meta_tech" value="" placeholder="工程師簽名" class="bg-slate-50 border border-slate-200 text-slate-800 rounded-md px-2.5 py-1.5 w-full text-xs font-medium">
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Solution Result Output Card -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Calculated Correction Solution (分析解算結果)</h3>
                     
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div class="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-100">
-                            <span class="text-xs font-semibold text-emerald-800 block mb-1">建議修正質量 (Correction Mass)</span>
+                            <span class="text-[11px] font-semibold text-emerald-800 block mb-1">建議修正質量 (Correction Mass)</span>
                             <div class="flex items-baseline gap-1">
-                                <span id="res_corr_mass" class="text-2xl font-black text-emerald-600 font-mono">--</span>
+                                <span id="res_corr_mass" class="text-xl font-black text-emerald-600 font-mono">--</span>
                                 <span class="text-xs font-bold text-emerald-700">g</span>
                             </div>
                         </div>
                         <div class="bg-sky-50/60 p-3.5 rounded-xl border border-sky-100">
-                            <span class="text-xs font-semibold text-sky-800 block mb-1">修正配重安裝方位 (Target Location)</span>
+                            <span class="text-[11px] font-semibold text-sky-800 block mb-1">修正配重安裝方位 (Target Location)</span>
                             <div class="flex items-baseline gap-1">
-                                <span id="res_final_location" class="text-xl font-black text-sky-600 font-mono">--</span>
+                                <span id="res_final_location" class="text-lg font-black text-sky-600 font-mono">--</span>
+                            </div>
+                        </div>
+                        <div class="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200/80">
+                            <span class="text-[11px] font-semibold text-amber-900 block mb-1">系統質量靈敏度 (Sensitivity)</span>
+                            <div class="flex items-baseline gap-1">
+                                <span id="res_mass_sensitivity" class="text-xl font-black text-amber-600 font-mono">--</span>
+                                <span class="text-[11px] font-bold text-amber-700">g/IPS</span>
                             </div>
                         </div>
                     </div>
@@ -297,11 +314,36 @@
                     <tbody class="font-mono text-slate-800">
                         <tr>
                             <td class="p-2.5 bg-slate-50 border border-slate-200 font-sans font-semibold text-slate-700">Peak (IPS)</td>
-                            <td id="tbl_r1_peak" class="p-2.5 text-center border border-slate-200 font-bold">--</td>
-                            <td id="tbl_r2_peak" class="p-2.5 text-center border border-slate-200 font-bold">--</td>
-                            <td class="p-1 border border-slate-200"><input type="number" step="0.01" id="r3_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-full text-center outline-none bg-transparent py-1 font-bold text-slate-800"></td>
-                            <td class="p-1 border border-slate-200"><input type="number" step="0.01" id="r4_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-full text-center outline-none bg-transparent py-1 font-bold text-slate-800"></td>
-                            <td class="p-1 border border-slate-200"><input type="number" step="0.01" id="r5_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-full text-center outline-none bg-transparent py-1 font-bold text-slate-800"></td>
+                            <td class="p-2 border border-slate-200 text-center">
+                                <div class="inline-flex items-center justify-center gap-1.5">
+                                    <span id="tbl_r1_peak" class="font-bold">--</span>
+                                    <span id="tbl_r1_status"></span>
+                                </div>
+                            </td>
+                            <td class="p-2 border border-slate-200 text-center">
+                                <div class="inline-flex items-center justify-center gap-1.5">
+                                    <span id="tbl_r2_peak" class="font-bold">--</span>
+                                    <span id="tbl_r2_status"></span>
+                                </div>
+                            </td>
+                            <td class="p-1.5 border border-slate-200 text-center">
+                                <div class="flex items-center justify-center gap-1 px-1">
+                                    <input type="number" step="0.01" id="r3_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-16 text-center outline-none bg-transparent py-1 font-bold text-slate-800">
+                                    <span id="tbl_r3_status"></span>
+                                </div>
+                            </td>
+                            <td class="p-1.5 border border-slate-200 text-center">
+                                <div class="flex items-center justify-center gap-1 px-1">
+                                    <input type="number" step="0.01" id="r4_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-16 text-center outline-none bg-transparent py-1 font-bold text-slate-800">
+                                    <span id="tbl_r4_status"></span>
+                                </div>
+                            </td>
+                            <td class="p-1.5 border border-slate-200 text-center">
+                                <div class="flex items-center justify-center gap-1 px-1">
+                                    <input type="number" step="0.01" id="r5_peak" oninput="updateRecordTable()" placeholder="IPS" class="w-16 text-center outline-none bg-transparent py-1 font-bold text-slate-800">
+                                    <span id="tbl_r5_status"></span>
+                                </div>
+                            </td>
                         </tr>
                         <tr>
                             <td class="p-2.5 bg-slate-50 border border-slate-200 font-sans font-semibold text-slate-700">Phase (Clock H)</td>
@@ -334,10 +376,19 @@
                 <h1 class="text-2xl font-black tracking-wide">AIRVIB® BALANCING REPORT</h1>
                 <h2 class="text-xs font-bold text-gray-700 mt-0.5">2-Blade Main Rotor Dynamic Balancing / <span id="prt_dir">CCW</span></h2>
             </div>
-            <div class="text-right text-xs space-y-0.5">
-                <p>Aircraft ID: <span id="prt_aircraft" class="font-bold border-b border-black px-2">--</span></p>
-                <p>Date: <span id="prt_date" class="font-bold border-b border-black px-2">--</span></p>
-                <p>Engineer: <span id="prt_tech" class="font-bold border-b border-black px-2">--</span></p>
+            <div class="text-xs space-y-1 min-w-[205px]">
+                <div class="grid grid-cols-[78px_1fr] items-baseline gap-1.5">
+                    <span class="text-left font-medium text-gray-700">Aircraft ID:</span>
+                    <span id="prt_aircraft" class="font-bold border-b border-black px-1.5 text-center">--</span>
+                </div>
+                <div class="grid grid-cols-[78px_1fr] items-baseline gap-1.5">
+                    <span class="text-left font-medium text-gray-700">Date:</span>
+                    <span id="prt_date" class="font-bold border-b border-black px-1.5 text-center">--</span>
+                </div>
+                <div class="grid grid-cols-[78px_1fr] items-baseline gap-1.5">
+                    <span class="text-left font-medium text-gray-700">Engineer:</span>
+                    <span id="prt_tech" class="font-bold border-b border-black px-1.5 text-center">--</span>
+                </div>
             </div>
         </div>
 
@@ -374,10 +425,10 @@
             </div>
 
             <!-- Right Column: Enlarged & Prominent Universal Polar Plot -->
-            <div class="col-span-7 border border-black p-3 flex flex-col items-center justify-between bg-white rounded">
-                <h3 class="text-xs font-bold uppercase tracking-wide mb-1">UNIVERSAL POLAR PLOT</h3>
-                <div class="w-full flex-grow flex items-center justify-center p-1">
-                    <img id="prt_chart_img" class="w-full h-80 object-contain" alt="Polar Chart">
+            <div class="col-span-7 border border-black p-1.5 flex flex-col items-center justify-between bg-white rounded">
+                <h3 class="text-xs font-bold uppercase tracking-wide pt-0.5">UNIVERSAL POLAR PLOT</h3>
+                <div class="w-full flex-grow flex items-center justify-center">
+                    <img id="prt_chart_img" class="w-full max-w-[435px] aspect-square object-contain" alt="Polar Chart">
                 </div>
             </div>
         </div>
@@ -538,6 +589,29 @@
             calculateBalancing();
         }
 
+        // Helper to render blinking PASS / FAIL badge next to IPS values in the Record Table
+        function renderIpsStatusBadge(elementId, ipsVal) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            if (ipsVal === null || ipsVal === undefined || isNaN(ipsVal)) {
+                el.innerHTML = '';
+                return;
+            }
+            if (ipsVal <= 0.1) {
+                el.innerHTML = '<span class="badge-blink inline-block px-1.5 py-0.5 text-[10px] font-sans font-extrabold tracking-wider text-emerald-700 bg-emerald-100 border border-emerald-400 rounded shadow-xs">PASS</span>';
+            } else {
+                el.innerHTML = '<span class="badge-blink inline-block px-1.5 py-0.5 text-[10px] font-sans font-extrabold tracking-wider text-red-700 bg-red-100 border border-red-400 rounded shadow-xs">FAIL</span>';
+            }
+        }
+
+        function formatPrintIpsWithBadge(ipsVal) {
+            if (ipsVal === null || ipsVal === undefined || isNaN(ipsVal)) return '--';
+            const badge = (ipsVal <= 0.1)
+                ? '<span class="ml-1 inline-block px-1 py-0.2 text-[9px] font-sans font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-500 rounded">PASS</span>'
+                : '<span class="ml-1 inline-block px-1 py-0.2 text-[9px] font-sans font-extrabold text-red-800 bg-red-100 border border-red-500 rounded">FAIL</span>';
+            return `<span class="font-bold">${ipsVal.toFixed(2)}</span>${badge}`;
+        }
+
         function calculateBalancing() {
             const r1IpsEl = document.getElementById('run1_ips');
             const trialMassEl = document.getElementById('trial_mass');
@@ -555,8 +629,12 @@
             const tblR2C = document.getElementById('tbl_r2_corr');
 
             if (tblR1P) tblR1P.innerText = (airvibState.r1.ips !== null && !isNaN(airvibState.r1.ips)) ? airvibState.r1.ips.toFixed(2) : '--';
+            renderIpsStatusBadge('tbl_r1_status', airvibState.r1.ips);
+
             if (tblR1Ph) tblR1Ph.innerText = airvibState.r1.clockRaw ? airvibState.r1.clockRaw.toUpperCase() : '--';
             if (tblR2P) tblR2P.innerText = (airvibState.r2.ips !== null && !isNaN(airvibState.r2.ips)) ? airvibState.r2.ips.toFixed(2) : '--';
+            renderIpsStatusBadge('tbl_r2_status', airvibState.r2.ips);
+
             if (tblR2Ph) tblR2Ph.innerText = airvibState.r2.clockRaw ? airvibState.r2.clockRaw.toUpperCase() : '--';
             if (tblR2C) tblR2C.innerText = (airvibState.trial.mass !== null && airvibState.trial.clockRaw) ? `${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw}` : '--';
 
@@ -581,6 +659,9 @@
                     corrMass = airvibState.trial.mass * (idealLen / moveLen);
                 }
 
+                // System Mass Sensitivity = Correction Mass / 1st Rotation IPS
+                let sensitivity = (airvibState.r1.ips > 0 && corrMass > 0) ? (corrMass / airvibState.r1.ips) : null;
+
                 const moveAngleRad = Math.atan2(vMove.y, vMove.x);
                 const idealAngleRad = Math.atan2(-p1.y, -p1.x);
 
@@ -593,6 +674,7 @@
 
                 airvibState.solution = {
                     mass: corrMass,
+                    sensitivity: sensitivity,
                     moveAngleCW: clockWiseDiff,
                     targetDeg: finalTargetDeg,
                     targetClockRaw: finalClockRaw,
@@ -602,25 +684,29 @@
 
                 const resMassEl = document.getElementById('res_corr_mass');
                 const resLocEl = document.getElementById('res_final_location');
+                const resSensEl = document.getElementById('res_mass_sensitivity');
                 const resVecEl = document.getElementById('res_vector_len');
                 const resIdealEl = document.getElementById('res_ideal_len');
                 const resAngleEl = document.getElementById('res_corr_angle');
 
                 if (resMassEl) resMassEl.innerText = corrMass.toFixed(1);
                 if (resLocEl) resLocEl.innerText = `${finalClockRaw} (${Math.round(finalTargetDeg)}°)`;
+                if (resSensEl) resSensEl.innerText = (sensitivity !== null && !isNaN(sensitivity)) ? sensitivity.toFixed(1) : '--';
                 if (resVecEl) resVecEl.innerText = moveLen.toFixed(3);
                 if (resIdealEl) resIdealEl.innerText = idealLen.toFixed(3);
                 if (resAngleEl) resAngleEl.innerText = `${Math.round(clockWiseDiff)}°`;
             } else {
-                airvibState.solution = { mass: null, moveAngleCW: null, targetDeg: null, targetClockRaw: '' };
+                airvibState.solution = { mass: null, sensitivity: null, moveAngleCW: null, targetDeg: null, targetClockRaw: '' };
                 const resMassEl = document.getElementById('res_corr_mass');
                 const resLocEl = document.getElementById('res_final_location');
+                const resSensEl = document.getElementById('res_mass_sensitivity');
                 const resVecEl = document.getElementById('res_vector_len');
                 const resIdealEl = document.getElementById('res_ideal_len');
                 const resAngleEl = document.getElementById('res_corr_angle');
 
                 if (resMassEl) resMassEl.innerText = '--';
                 if (resLocEl) resLocEl.innerText = '--';
+                if (resSensEl) resSensEl.innerText = '--';
                 if (resVecEl) resVecEl.innerText = '--';
                 if (resIdealEl) resIdealEl.innerText = '--';
                 if (resAngleEl) resAngleEl.innerText = '--';
@@ -637,15 +723,18 @@
                 const corrVal = document.getElementById(`${r}_corr`)?.value;
 
                 const ips = (peakVal !== '' && peakVal !== undefined && peakVal !== null) ? parseFloat(peakVal) : null;
+                const validIps = (ips !== null && !isNaN(ips)) ? ips : null;
                 const deg = parseClockToDeg(phaseVal);
 
                 airvibState[r] = {
                     peak: peakVal || '',
                     phase: phaseVal || '',
                     corr: corrVal || '',
-                    ips: (ips !== null && !isNaN(ips)) ? ips : null,
+                    ips: validIps,
                     deg: deg
                 };
+
+                renderIpsStatusBadge(`tbl_${r}_status`, validIps);
             });
             drawPolarChart();
         }
@@ -659,7 +748,7 @@
             const ctx = canvas.getContext('2d');
             const w = canvas.width, h = canvas.height;
             const cx = w / 2, cy = h / 2;
-            const rMax = w * 0.38;
+            const rMax = w * 0.425;
 
             ctx.clearRect(0, 0, w, h);
 
@@ -712,10 +801,10 @@
                 ctx.stroke();
             }
 
-            // 2. Clean IPS Scale Annotations with Smart Precision
+            // 2. Clean IPS Scale Annotations rotated 15° clockwise around chart center (75° & 255° rays)
             const step = maxIPS / ringCount;
-            const rad60 = (60 - 90) * Math.PI / 180;   // 60° / 2H ray
-            const rad240 = (240 - 90) * Math.PI / 180; // 240° / 8H ray
+            const radAxis1 = (60 + 15 - 90) * Math.PI / 180;   // 75° ray (15° CW from 60°/2H)
+            const radAxis2 = (240 + 15 - 90) * Math.PI / 180; // 255° ray (15° CW from 240°/8H)
 
             for (let i = 1; i <= ringCount; i++) {
                 const r = (rMax / ringCount) * i;
@@ -729,32 +818,32 @@
                     ipsText = (val % 1 === 0) ? val.toFixed(0) : val.toFixed(1);
                 }
 
-                // Set 1: Along 60° (2H) axis
-                const x60 = cx + r * Math.cos(rad60);
-                const y60 = cy + r * Math.sin(rad60);
+                // Set 1: Along 75° axis
+                const xAxis1 = cx + r * Math.cos(radAxis1);
+                const yAxis1 = cy + r * Math.sin(radAxis1);
                 ctx.save();
                 ctx.font = 'bold 15px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 4;
-                ctx.strokeText(ipsText, x60, y60);
+                ctx.strokeText(ipsText, xAxis1, yAxis1);
                 ctx.fillStyle = '#0f172a';
-                ctx.fillText(ipsText, x60, y60);
+                ctx.fillText(ipsText, xAxis1, yAxis1);
                 ctx.restore();
 
-                // Set 2: Along 240° (8H) axis
-                const x240 = cx + r * Math.cos(rad240);
-                const y240 = cy + r * Math.sin(rad240);
+                // Set 2: Along 255° axis
+                const xAxis2 = cx + r * Math.cos(radAxis2);
+                const yAxis2 = cy + r * Math.sin(radAxis2);
                 ctx.save();
                 ctx.font = 'bold 15px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 4;
-                ctx.strokeText(ipsText, x240, y240);
+                ctx.strokeText(ipsText, xAxis2, yAxis2);
                 ctx.fillStyle = '#0f172a';
-                ctx.fillText(ipsText, x240, y240);
+                ctx.fillText(ipsText, xAxis2, yAxis2);
                 ctx.restore();
             }
 
@@ -773,8 +862,8 @@
                 // Outer Labels (30° Hour Intervals) - Scaled Bold Typography
                 if (isMainHour) {
                     const clock = (deg / 30 === 0) ? 12 : Math.round(deg / 30);
-                    const lx = cx + (rMax + 40) * Math.cos(rad);
-                    const ly = cy + (rMax + 40) * Math.sin(rad);
+                    const lx = cx + (rMax + 34) * Math.cos(rad);
+                    const ly = cy + (rMax + 34) * Math.sin(rad);
 
                     ctx.fillStyle = '#0f172a';
                     ctx.font = 'bold 26px sans-serif';
@@ -1386,22 +1475,23 @@
             document.getElementById('prt_trial').innerText = (airvibState.trial.mass !== null) ? `${airvibState.trial.mass}g @ ${(airvibState.trial.clockRaw || '--').toUpperCase()}` : '--';
             document.getElementById('prt_r2').innerText = (airvibState.r2.ips !== null) ? `${airvibState.r2.ips.toFixed(2)} IPS @ ${(airvibState.r2.clockRaw || '--').toUpperCase()}` : '--';
 
-            document.getElementById('prt_solution').innerText = (airvibState.solution.mass !== null) ? 
-                `${airvibState.solution.mass.toFixed(1)}g @ ${airvibState.solution.targetClockRaw}` : '--';
+            document.getElementById('prt_solution').innerText = (airvibState.solution && airvibState.solution.mass !== null && !isNaN(airvibState.solution.mass))
+                ? `${airvibState.solution.mass.toFixed(1)}g @ ${airvibState.solution.targetClockRaw}`
+                : '--';
 
-            // Table Summary Data (Rotations 1 to 5)
-            document.getElementById('prt_tbl_r1_p').innerText = (airvibState.r1.ips !== null) ? airvibState.r1.ips.toFixed(2) : '--';
+            // Table Summary Data (Rotations 1 to 5) with PASS / FAIL Status Badges
+            document.getElementById('prt_tbl_r1_p').innerHTML = formatPrintIpsWithBadge(airvibState.r1.ips);
             document.getElementById('prt_tbl_r1_ph').innerText = airvibState.r1.clockRaw || '--';
             document.getElementById('prt_tbl_r1_c').innerText = '--';
 
-            document.getElementById('prt_tbl_r2_p').innerText = (airvibState.r2.ips !== null) ? airvibState.r2.ips.toFixed(2) : '--';
+            document.getElementById('prt_tbl_r2_p').innerHTML = formatPrintIpsWithBadge(airvibState.r2.ips);
             document.getElementById('prt_tbl_r2_ph').innerText = airvibState.r2.clockRaw || '--';
             document.getElementById('prt_tbl_r2_c').innerText = (airvibState.trial.mass !== null) ? `${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw}` : '--';
 
             // Rotations 3, 4, 5
             ['r3', 'r4', 'r5'].forEach(r => {
                 const data = airvibState[r] || {};
-                document.getElementById(`prt_tbl_${r}_p`).innerText = data.peak !== '' ? data.peak : '--';
+                document.getElementById(`prt_tbl_${r}_p`).innerHTML = formatPrintIpsWithBadge(data.ips);
                 document.getElementById(`prt_tbl_${r}_ph`).innerText = data.phase !== '' ? data.phase : '--';
                 document.getElementById(`prt_tbl_${r}_c`).innerText = data.corr !== '' ? data.corr : '--';
             });
