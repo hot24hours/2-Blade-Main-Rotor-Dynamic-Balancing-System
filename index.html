@@ -178,7 +178,7 @@
                                 <span class="text-xs font-bold text-slate-800">1st Rotation</span>
                                 <span class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">初始測試 - 配重歸零</span>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
                                     <label class="block text-[11px] font-semibold text-slate-600 mb-1">振幅 Peak (IPS)</label>
                                     <input type="number" id="run1_ips" step="0.01" value="" placeholder="輸入振幅" oninput="calculateBalancing()" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono text-sm">
@@ -186,8 +186,15 @@
                                 <div>
                                     <label class="block text-[11px] font-semibold text-slate-600 mb-1">相位 Phase (Clock H)</label>
                                     <div class="relative">
-                                        <input type="text" id="run1_clock" value="" oninput="handleClockInput('run1')" placeholder="例如: 10h, 1h20" class="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-14 py-2 text-slate-900 font-mono text-sm">
+                                        <input type="text" id="run1_clock" value="" oninput="handleClockInput('run1')" placeholder="例如: 10h, 1h20" class="w-full bg-white border border-slate-300 rounded-lg pl-3 pr-12 py-2 text-slate-900 font-mono text-sm">
                                         <span id="run1_deg_display" class="absolute right-2.5 top-2.5 text-xs font-mono font-bold text-sky-600">--</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">對角相位 (180°)</label>
+                                    <div class="w-full bg-slate-100/90 border border-slate-300 rounded-lg px-3 py-2 font-mono text-sm flex items-center justify-between select-all">
+                                        <span id="run1_opp_clock" class="font-bold text-slate-800">--</span>
+                                        <span id="run1_opp_deg" class="text-xs font-bold text-sky-600">--</span>
                                     </div>
                                 </div>
                             </div>
@@ -267,7 +274,7 @@
                     <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-xs font-mono text-slate-600">
                         <div>Move Line: <b id="res_vector_len" class="text-slate-900">--</b></div>
                         <div>Ideal Line: <b id="res_ideal_len" class="text-slate-900">--</b></div>
-                        <div>CW Angle: <b id="res_corr_angle" class="text-slate-900">--</b></div>
+                        <div>Angle Shift: <b id="res_corr_angle" class="text-slate-900">--</b></div>
                     </div>
                 </div>
             </div>
@@ -355,8 +362,8 @@
                         </tr>
                         <tr>
                             <td class="p-2.5 bg-slate-50 border border-slate-200 font-sans font-semibold text-slate-700">CORRECTIONS</td>
-                            <td id="tbl_r1_corr" class="p-2.5 text-center border border-slate-200 text-slate-400">--</td>
-                            <td id="tbl_r2_corr" class="p-2.5 text-center border border-slate-200 font-bold text-sky-700">--</td>
+                            <td id="tbl_r1_corr" class="p-2 text-center border border-slate-200 font-bold text-sky-700">--</td>
+                            <td class="p-1 border border-slate-200"><input type="text" id="r2_corr" oninput="updateRecordTable()" placeholder="Mass @ Clock" class="w-full text-center outline-none bg-transparent py-1 font-bold text-sky-700"></td>
                             <td class="p-1 border border-slate-200"><input type="text" id="r3_corr" oninput="updateRecordTable()" placeholder="Mass @ Clock" class="w-full text-center outline-none bg-transparent py-1 font-bold text-sky-700"></td>
                             <td class="p-1 border border-slate-200"><input type="text" id="r4_corr" oninput="updateRecordTable()" placeholder="Mass @ Clock" class="w-full text-center outline-none bg-transparent py-1 font-bold text-sky-700"></td>
                             <td class="p-1 border border-slate-200"><input type="text" id="r5_corr" oninput="updateRecordTable()" placeholder="Mass @ Clock" class="w-full text-center outline-none bg-transparent py-1 font-bold text-sky-700"></td>
@@ -489,7 +496,7 @@
         let airvibState = {
             r1: { ips: null, clockRaw: '', deg: null },
             trial: { mass: null, clockRaw: '', deg: null },
-            r2: { ips: null, clockRaw: '', deg: null },
+            r2: { ips: null, clockRaw: '', deg: null, corr: '' },
             r3: { peak: '', phase: '', corr: '', ips: null, deg: null },
             r4: { peak: '', phase: '', corr: '', ips: null, deg: null },
             r5: { peak: '', phase: '', corr: '', ips: null, deg: null },
@@ -585,6 +592,20 @@
             if (dispEl) {
                 dispEl.innerText = (deg !== null) ? `${Math.round(deg)}°` : '--';
             }
+
+            // Auto-calculate opposite 180° phase for 1st Rotation
+            if (field === 'run1') {
+                const oppClockEl = document.getElementById('run1_opp_clock');
+                const oppDegEl = document.getElementById('run1_opp_deg');
+                if (deg !== null) {
+                    const oppDeg = (deg + 180) % 360;
+                    if (oppClockEl) oppClockEl.innerText = formatDegToClock(oppDeg);
+                    if (oppDegEl) oppDegEl.innerText = `${Math.round(oppDeg)}°`;
+                } else {
+                    if (oppClockEl) oppClockEl.innerText = '--';
+                    if (oppDegEl) oppDegEl.innerText = '--';
+                }
+            }
             
             calculateBalancing();
         }
@@ -624,19 +645,26 @@
             // Update UI Table inputs for R1 and R2
             const tblR1P = document.getElementById('tbl_r1_peak');
             const tblR1Ph = document.getElementById('tbl_r1_phase');
+            const tblR1C = document.getElementById('tbl_r1_corr');
             const tblR2P = document.getElementById('tbl_r2_peak');
             const tblR2Ph = document.getElementById('tbl_r2_phase');
-            const tblR2C = document.getElementById('tbl_r2_corr');
 
             if (tblR1P) tblR1P.innerText = (airvibState.r1.ips !== null && !isNaN(airvibState.r1.ips)) ? airvibState.r1.ips.toFixed(2) : '--';
             renderIpsStatusBadge('tbl_r1_status', airvibState.r1.ips);
 
             if (tblR1Ph) tblR1Ph.innerText = airvibState.r1.clockRaw ? airvibState.r1.clockRaw.toUpperCase() : '--';
+            if (tblR1C) {
+                if (airvibState.trial.mass !== null && !isNaN(airvibState.trial.mass) && airvibState.trial.clockRaw) {
+                    tblR1C.innerHTML = `<div class="inline-flex flex-wrap items-center justify-center gap-1.5"><span>${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw.toUpperCase()}</span><span class="inline-block px-1.5 py-0.5 text-[10px] font-sans font-extrabold tracking-wide text-sky-700 bg-sky-100 border border-sky-300 rounded">Trial Mass</span></div>`;
+                } else {
+                    tblR1C.innerHTML = '<span class="text-slate-400 font-normal">--</span>';
+                }
+            }
+
             if (tblR2P) tblR2P.innerText = (airvibState.r2.ips !== null && !isNaN(airvibState.r2.ips)) ? airvibState.r2.ips.toFixed(2) : '--';
             renderIpsStatusBadge('tbl_r2_status', airvibState.r2.ips);
 
             if (tblR2Ph) tblR2Ph.innerText = airvibState.r2.clockRaw ? airvibState.r2.clockRaw.toUpperCase() : '--';
-            if (tblR2C) tblR2C.innerText = (airvibState.trial.mass !== null && airvibState.trial.clockRaw) ? `${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw}` : '--';
 
             // Mathematical Vector Calculation if R1, Trial, and R2 are valid
             if (airvibState.r1.ips !== null && airvibState.r1.deg !== null &&
@@ -667,15 +695,16 @@
 
                 let moveDeg = (moveAngleRad * 180 / Math.PI + 360) % 360;
                 let idealDeg = (idealAngleRad * 180 / Math.PI + 360) % 360;
-                let clockWiseDiff = (idealDeg - moveDeg + 360) % 360;
+                // Shortest signed angle (-180° to +180°): positive = CW (add angle), negative = CCW (subtract angle)
+                let signedAngleDiff = ((idealDeg - moveDeg + 540) % 360) - 180;
 
-                let finalTargetDeg = (airvibState.trial.deg + clockWiseDiff) % 360;
+                let finalTargetDeg = (airvibState.trial.deg + signedAngleDiff + 360) % 360;
                 let finalClockRaw = formatDegToClock(finalTargetDeg);
 
                 airvibState.solution = {
                     mass: corrMass,
                     sensitivity: sensitivity,
-                    moveAngleCW: clockWiseDiff,
+                    signedAngleDiff: signedAngleDiff,
                     targetDeg: finalTargetDeg,
                     targetClockRaw: finalClockRaw,
                     moveLen: moveLen,
@@ -689,14 +718,17 @@
                 const resIdealEl = document.getElementById('res_ideal_len');
                 const resAngleEl = document.getElementById('res_corr_angle');
 
+                const shiftDirLabel = signedAngleDiff >= 0 ? 'CW' : 'CCW';
+                const shiftAbsDeg = Math.round(Math.abs(signedAngleDiff));
+
                 if (resMassEl) resMassEl.innerText = corrMass.toFixed(1);
                 if (resLocEl) resLocEl.innerText = `${finalClockRaw} (${Math.round(finalTargetDeg)}°)`;
                 if (resSensEl) resSensEl.innerText = (sensitivity !== null && !isNaN(sensitivity)) ? sensitivity.toFixed(1) : '--';
                 if (resVecEl) resVecEl.innerText = moveLen.toFixed(3);
                 if (resIdealEl) resIdealEl.innerText = idealLen.toFixed(3);
-                if (resAngleEl) resAngleEl.innerText = `${Math.round(clockWiseDiff)}°`;
+                if (resAngleEl) resAngleEl.innerText = `${shiftAbsDeg}° ${shiftDirLabel}`;
             } else {
-                airvibState.solution = { mass: null, sensitivity: null, moveAngleCW: null, targetDeg: null, targetClockRaw: '' };
+                airvibState.solution = { mass: null, sensitivity: null, signedAngleDiff: null, targetDeg: null, targetClockRaw: '' };
                 const resMassEl = document.getElementById('res_corr_mass');
                 const resLocEl = document.getElementById('res_final_location');
                 const resSensEl = document.getElementById('res_mass_sensitivity');
@@ -711,12 +743,15 @@
                 if (resIdealEl) resIdealEl.innerText = '--';
                 if (resAngleEl) resAngleEl.innerText = '--';
             }
-
-            drawPolarChart();
         }
 
-        // Track 3rd, 4th, 5th rotation inputs and parse polar coordinates
+        // Track 2nd rotation correction & 3rd, 4th, 5th rotation inputs and parse polar coordinates
         function updateRecordTable() {
+            const r2CorrEl = document.getElementById('r2_corr');
+            if (airvibState.r2) {
+                airvibState.r2.corr = r2CorrEl ? r2CorrEl.value : '';
+            }
+
             ['r3', 'r4', 'r5'].forEach(r => {
                 const peakVal = document.getElementById(`${r}_peak`)?.value;
                 const phaseVal = document.getElementById(`${r}_phase`)?.value;
@@ -897,54 +932,80 @@
                 ctx.beginPath();
                 ctx.moveTo(p1.x, p1.y);
                 ctx.lineTo(cx, cy);
-                ctx.strokeStyle = '#10b981'; // Emerald Green
-                ctx.lineWidth = 3.5;
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 3;
                 ctx.stroke();
-                drawArrowhead(ctx, p1, { x: cx, y: cy }, '#10b981', 12);
+                drawArrowhead(ctx, p1, { x: cx, y: cy }, '#10b981', 11);
 
-                const midIx = (p1.x + cx) / 2;
-                const midIy = (p1.y + cy) / 2;
-                drawPolarTextBadge(ctx, 'Ideal Line', midIx + 15, midIy, '#059669', 'rgba(236, 253, 245, 0.95)', '#a7f3d0');
+                const midIdealX = (p1.x + cx) / 2;
+                const midIdealY = (p1.y + cy) / 2;
+                drawPolarTextBadge(ctx, 'Ideal Line', midIdealX + 26, midIdealY - 14, '#059669', 'rgba(236, 253, 245, 0.95)', '#a7f3d0');
 
                 if (p2) {
-                    // Move Vector Line (Pt 1 -> Pt 2)
+                    // Move Vector (Pt 1 -> Pt 2)
                     ctx.beginPath();
                     ctx.moveTo(p1.x, p1.y);
                     ctx.lineTo(p2.x, p2.y);
-                    ctx.strokeStyle = '#0284c7'; // Blue
-                    ctx.lineWidth = 3.5;
+                    ctx.strokeStyle = '#0284c7';
+                    ctx.lineWidth = 3;
                     ctx.stroke();
-                    drawArrowhead(ctx, p1, p2, '#0284c7', 12);
+                    drawArrowhead(ctx, p1, p2, '#0284c7', 11);
 
-                    const midMx = (p1.x + p2.x) / 2;
-                    const midMy = (p1.y + p2.y) / 2;
-                    drawPolarTextBadge(ctx, 'Move Vector', midMx, midMy - 18, '#0284c7', 'rgba(240, 249, 255, 0.95)', '#bae6fd');
+                    const midMoveX = (p1.x + p2.x) / 2;
+                    const midMoveY = (p1.y + p2.y) / 2;
+                    drawPolarTextBadge(ctx, 'Move Vector', midMoveX - 28, midMoveY - 14, '#0284c7', 'rgba(240, 249, 255, 0.95)', '#bae6fd');
 
-                    // Correction Angle Arc (Purple Dashed)
-                    if (airvibState.solution.moveAngleCW !== null) {
+                    // Correction Angle Arc (Purple Dashed along shortest CW/CCW direction with Arrowhead)
+                    if (airvibState.solution.signedAngleDiff !== null) {
                         const vMoveRad = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                        const vIdealRad = Math.atan2(cy - p1.y, cx - p1.y);
+                        const vIdealRad = Math.atan2(cy - p1.y, cx - p1.x);
+                        const isCCW = airvibState.solution.signedAngleDiff < 0;
+                        const arcR = 42;
 
                         ctx.beginPath();
-                        ctx.arc(p1.x, p1.y, 40, vMoveRad, vIdealRad, false);
-                        ctx.strokeStyle = '#a855f7';
+                        ctx.arc(p1.x, p1.y, arcR, vMoveRad, vIdealRad, isCCW);
+                        ctx.strokeStyle = '#9333ea';
                         ctx.lineWidth = 2.5;
                         ctx.setLineDash([4, 4]);
                         ctx.stroke();
                         ctx.setLineDash([]);
 
-                        drawPolarTextBadge(ctx, 'Correction Angle', p1.x + 55, p1.y + 22, '#9333ea', 'rgba(250, 245, 255, 0.95)', '#e9d5ff');
+                        // Arrowhead on the purple correction arc pointing toward Ideal Line
+                        const arrowTip = {
+                            x: p1.x + arcR * Math.cos(vIdealRad),
+                            y: p1.y + arcR * Math.sin(vIdealRad)
+                        };
+                        const tangentRad = isCCW ? (vIdealRad - Math.PI / 2) : (vIdealRad + Math.PI / 2);
+                        const arrowFrom = {
+                            x: arrowTip.x - 10 * Math.cos(tangentRad),
+                            y: arrowTip.y - 10 * Math.sin(tangentRad)
+                        };
+                        drawArrowhead(ctx, arrowFrom, arrowTip, '#9333ea', 9);
+
+                        const midArcRad = vMoveRad + (airvibState.solution.signedAngleDiff * Math.PI / 180) / 2;
+                        const badgeDist = arcR + 48;
+                        const labelDir = isCCW ? 'CCW' : 'CW';
+                        const labelText = `${Math.round(Math.abs(airvibState.solution.signedAngleDiff))}° ${labelDir}`;
+                        drawPolarTextBadge(
+                            ctx,
+                            labelText,
+                            p1.x + badgeDist * Math.cos(midArcRad),
+                            p1.y + badgeDist * Math.sin(midArcRad),
+                            '#9333ea',
+                            'rgba(250, 245, 255, 0.95)',
+                            '#e9d5ff'
+                        );
                     }
                 }
             }
 
             // High-Contrast Vivid Colors & Layering Configuration for Pt 1 ~ Pt 5
             const pointsData = [
-                { pt: p1, label: 'Pt 1', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.3)', textBg: '#fef2f2', border: '#fca5a5', offset: { x: 16, y: 16 } },
-                { pt: p2, label: 'Pt 2', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.3)', textBg: '#eff6ff', border: '#bfdbfe', offset: { x: -16, y: -16 } },
-                { pt: p3, label: 'Pt 3', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.3)', textBg: '#fff7ed', border: '#ffedd5', offset: { x: 18, y: -16 } },
-                { pt: p4, label: 'Pt 4', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.3)', textBg: '#f5f3ff', border: '#ddd6fe', offset: { x: -18, y: 16 } },
-                { pt: p5, label: 'Pt 5', color: '#059669', bg: 'rgba(5, 150, 105, 0.3)', textBg: '#ecfdf5', border: '#a7f3d0', offset: { x: 0, y: -20 } }
+                { pt: p1, label: 'Pt 1', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.3)', textBg: '#fef2f2', border: '#fca5a5', offset: { x: 20, y: 18 } },
+                { pt: p2, label: 'Pt 2', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.3)', textBg: '#eff6ff', border: '#bfdbfe', offset: { x: -24, y: 14 } },
+                { pt: p3, label: 'Pt 3', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.3)', textBg: '#fff7ed', border: '#ffedd5', offset: { x: -24, y: -18 } },
+                { pt: p4, label: 'Pt 4', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.3)', textBg: '#f5f3ff', border: '#ddd6fe', offset: { x: 24, y: -18 } },
+                { pt: p5, label: 'Pt 5', color: '#059669', bg: 'rgba(5, 150, 105, 0.3)', textBg: '#ecfdf5', border: '#a7f3d0', offset: { x: 0, y: -24 } }
             ];
 
             // Step 1: Render Text Label Badges FIRST (Lower Layer)
@@ -1443,6 +1504,9 @@
             document.getElementById('run2_ips').value = '';
             document.getElementById('run2_clock').value = '';
 
+            const r2Corr = document.getElementById('r2_corr');
+            if (r2Corr) r2Corr.value = '';
+
             ['r3', 'r4', 'r5'].forEach(r => {
                 const p = document.getElementById(`${r}_peak`);
                 const ph = document.getElementById(`${r}_phase`);
@@ -1482,11 +1546,15 @@
             // Table Summary Data (Rotations 1 to 5) with PASS / FAIL Status Badges
             document.getElementById('prt_tbl_r1_p').innerHTML = formatPrintIpsWithBadge(airvibState.r1.ips);
             document.getElementById('prt_tbl_r1_ph').innerText = airvibState.r1.clockRaw || '--';
-            document.getElementById('prt_tbl_r1_c').innerText = '--';
+            if (airvibState.trial.mass !== null && !isNaN(airvibState.trial.mass) && airvibState.trial.clockRaw) {
+                document.getElementById('prt_tbl_r1_c').innerHTML = `<div class="inline-flex flex-wrap items-center justify-center gap-1"><span class="font-bold">${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw.toUpperCase()}</span><span class="inline-block px-1 py-0.2 text-[9px] font-sans font-extrabold text-sky-800 bg-sky-100 border border-sky-400 rounded">Trial Mass</span></div>`;
+            } else {
+                document.getElementById('prt_tbl_r1_c').innerText = '--';
+            }
 
             document.getElementById('prt_tbl_r2_p').innerHTML = formatPrintIpsWithBadge(airvibState.r2.ips);
             document.getElementById('prt_tbl_r2_ph').innerText = airvibState.r2.clockRaw || '--';
-            document.getElementById('prt_tbl_r2_c').innerText = (airvibState.trial.mass !== null) ? `${airvibState.trial.mass}g @ ${airvibState.trial.clockRaw}` : '--';
+            document.getElementById('prt_tbl_r2_c').innerText = (airvibState.r2.corr && airvibState.r2.corr.trim() !== '') ? airvibState.r2.corr : '--';
 
             // Rotations 3, 4, 5
             ['r3', 'r4', 'r5'].forEach(r => {
